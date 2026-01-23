@@ -13,6 +13,7 @@ This project implements a multimodal RAG pipeline that:
 
 
 
+
 ## Requirements
 
 - Python 3.8+
