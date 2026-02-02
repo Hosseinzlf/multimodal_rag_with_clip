@@ -12,11 +12,8 @@ This project implements a multimodal RAG pipeline that:
 - Generates answers using Google's Gemini model with multimodal context
 
 
-
-
 ## Requirements
 
-- Python 3.8+
 - Google API Key (for Gemini model)
 
 ## Installation
