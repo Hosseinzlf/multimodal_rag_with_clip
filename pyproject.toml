@@ -1,0 +1,61 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clip-multimodal-rag"
+version = "0.1.0"
+description = "Multimodal RAG over PDFs using CLIP embeddings and Google Gemini"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+authors = [
+    { name = "Hossein Zolfaghari" }
+]
+keywords = ["rag", "clip", "multimodal", "pdf", "gemini", "langchain"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "PyMuPDF>=1.23.0",
+    "langchain>=0.3.0",
+    "langchain-core>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langchain-text-splitters>=0.3.0",
+    "langchain-google-genai>=2.0.0",
+    "torch>=2.0.0",
+    "transformers>=4.35.0",
+    "Pillow>=10.0.0",
+    "faiss-cpu>=1.7.4",
+    "numpy>=1.24.0,<3.0.0",
+    "scikit-learn>=1.3.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+]
+
+[project.scripts]
+clip-rag = "clip_multimodal_rag.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 88
+target-version = ["py310", "py311", "py312"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
