@@ -1,8 +1,5 @@
 # CLIP Multimodal RAG
 
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
 A **Retrieval-Augmented Generation (RAG)** system for PDFs that combines **text and images** in a single pipeline. It uses **CLIP** for unified embeddings, **FAISS** for similarity search, and **Google Gemini** for answer generation.
 
 ## Features
