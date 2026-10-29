@@ -1,13 +1,13 @@
-"""End-to-end multimodal RAG pipeline: retrieve + generate with Gemini."""
+"""End-to-end multimodal RAG pipeline: retrieve + generate with a chat model."""
 
+import os
 from typing import Optional
 
+from langchain.chat_models import init_chat_model
 from langchain_core.messages import HumanMessage
-from langchain_google_genai import ChatGoogleGenerativeAI
 
-from clip_multimodal_rag.config import get_google_api_key
+from clip_multimodal_rag.config import CHAT_MODEL, get_openai_api_key
 from clip_multimodal_rag.embeddings import CLIPEmbedder
-from clip_multimodal_rag.pdf_processor import PDFProcessor
 from clip_multimodal_rag.retrieval import MultimodalRetriever
 
 
@@ -17,32 +17,23 @@ def _build_multimodal_message(
     image_data_store: dict[str, str],
 ) -> HumanMessage:
     """Build a single HumanMessage with text context and inline base64 images."""
-    content: list[dict] = []
+    content: list[dict] = [
+        {"type": "text", "text": f"Question: {query}\n\nContext:\n"}
+    ]
 
-    content.append({
-        "type": "text",
-        "text": f"Question: {query}\n\nContext:\n",
-    })
+    for doc in retrieved_docs:
+        if doc.metadata.get("type") == "text":
+            content.append({
+                "type": "text",
+                "text": f"[Text from page {doc.metadata['page']}]: {doc.page_content}\n",
+            })
+            continue
 
-    text_docs = [d for d in retrieved_docs if d.metadata.get("type") == "text"]
-    image_docs = [d for d in retrieved_docs if d.metadata.get("type") == "image"]
-
-    if text_docs:
-        text_context = "\n\n".join(
-            f"[Page {d.metadata['page']}]: {d.page_content}"
-            for d in text_docs
-        )
-        content.append({
-            "type": "text",
-            "text": f"Text excerpts:\n{text_context}\n",
-        })
-
-    for doc in image_docs:
         image_id = doc.metadata.get("image_id")
         if image_id and image_id in image_data_store:
             content.append({
                 "type": "text",
-                "text": f"\n[Image from page {doc.metadata['page']}]:\n",
+                "text": f"[Image from page {doc.metadata['page']}]:",
             })
             content.append({
                 "type": "image_url",
@@ -53,9 +44,8 @@ def _build_multimodal_message(
 
     content.append({
         "type": "text",
-        "text": "\n\nAnswer the question based on the provided text and images.",
+        "text": "\nAnswer the question using the text and images above.",
     })
-
     return HumanMessage(content=content)
 
 
@@ -68,21 +58,23 @@ class MultimodalRAGPipeline:
         retriever: MultimodalRetriever,
         image_data_store: dict[str, str],
         *,
-        gemini_model: str = "gemini-2.0-flash",
+        chat_model: str = CHAT_MODEL,
         api_key: Optional[str] = None,
         top_k: int = 5,
+        temperature: float = 0,
     ):
         self.embedder = embedder
         self.retriever = retriever
         self.image_data_store = image_data_store
         self.top_k = top_k
-        self._llm = ChatGoogleGenerativeAI(
-            model=gemini_model,
-            api_key=api_key or get_google_api_key(),
-        )
+        if api_key:
+            os.environ["OPENAI_API_KEY"] = api_key
+        else:
+            get_openai_api_key()
+        self._llm = init_chat_model(model=chat_model, temperature=temperature)
 
     def query(self, question: str, verbose: bool = True) -> str:
-        """Retrieve context and return Gemini's answer."""
+        """Retrieve context and return the chat model's answer."""
         docs = self.retriever.retrieve(question, k=self.top_k)
         message = _build_multimodal_message(
             question, docs, self.image_data_store
@@ -90,19 +82,11 @@ class MultimodalRAGPipeline:
         response = self._llm.invoke([message])
 
         if verbose:
-            print(f"\nRetrieved {len(docs)} documents:")
+            print(f"\nRetrieved {len(docs)} items:")
             for d in docs:
                 doc_type = d.metadata.get("type", "unknown")
                 page = d.metadata.get("page", "?")
-                if doc_type == "text":
-                    preview = (
-                        d.page_content[:100] + "..."
-                        if len(d.page_content) > 100
-                        else d.page_content
-                    )
-                    print(f"  - Text (page {page}): {preview}")
-                else:
-                    print(f"  - Image (page {page})")
+                print(f"  - {doc_type} from page {page}")
             print()
 
         return response.content

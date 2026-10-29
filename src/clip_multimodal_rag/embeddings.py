@@ -9,14 +9,20 @@ from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
 
+def _feature_tensor(output):
+    """Newer transformers return a ModelOutput; older versions return a tensor."""
+    if hasattr(output, "pooler_output"):
+        return output.pooler_output
+    return output
+
+
 class CLIPEmbedder:
     """Unified CLIP embedder for text and images."""
 
     def __init__(self, model_id: str = "openai/clip-vit-base-patch32"):
         self.model_id = model_id
-        self._model = CLIPModel.from_pretrained(model_id)
+        self._model = CLIPModel.from_pretrained(model_id).eval()
         self._processor = CLIPProcessor.from_pretrained(model_id)
-        self._model.eval()
 
     def embed_image(
         self, image: Union[str, Path, Image.Image]
@@ -29,9 +35,9 @@ class CLIPEmbedder:
 
         inputs = self._processor(images=image, return_tensors="pt")
         with torch.no_grad():
-            features = self._model.get_image_features(**inputs)
+            features = _feature_tensor(self._model.get_image_features(**inputs))
         features = features / features.norm(dim=-1, keepdim=True)
-        return features.squeeze().numpy()
+        return features[0].numpy()
 
     def embed_text(self, text: str, max_length: int = 77) -> np.ndarray:
         """Embed a single text string."""
@@ -43,14 +49,14 @@ class CLIPEmbedder:
             max_length=max_length,
         )
         with torch.no_grad():
-            features = self._model.get_text_features(**inputs)
+            features = _feature_tensor(self._model.get_text_features(**inputs))
         features = features / features.norm(dim=-1, keepdim=True)
-        return features.squeeze().numpy()
+        return features[0].numpy()
 
     def embed_texts(self, texts: list[str], max_length: int = 77) -> np.ndarray:
         """Embed a list of texts (batch)."""
         if not texts:
-            return np.array([]).reshape(0, self._model.config.projection_dim)
+            return np.array([]).reshape(0, self.embedding_dim)
         inputs = self._processor(
             text=texts,
             return_tensors="pt",
@@ -59,7 +65,7 @@ class CLIPEmbedder:
             max_length=max_length,
         )
         with torch.no_grad():
-            features = self._model.get_text_features(**inputs)
+            features = _feature_tensor(self._model.get_text_features(**inputs))
         features = features / features.norm(dim=-1, keepdim=True)
         return features.numpy()
 

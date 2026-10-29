@@ -1,32 +1,32 @@
 # CLIP Multimodal RAG
 
-A **Retrieval-Augmented Generation (RAG)** system for PDFs that combines **text and images** in a single pipeline. It uses **CLIP** for unified embeddings, **FAISS** for similarity search, and **Google Gemini** for answer generation. 
+A **Retrieval-Augmented Generation (RAG)** system for PDFs that combines **text and images** in a single pipeline. It uses **CLIP** for unified embeddings, **FAISS** for similarity search, and a LangChain chat model (**OpenAI** by default) for answer generation.
 
 ------
 ## Features
 
 - **Multimodal indexing**: Extract and embed both text chunks and images from PDFs.
 - **Unified retrieval**: CLIP places text and images in one vector space so queries retrieve the most relevant content regardless of type.
-- **Production-oriented layout**: Installable package, config via environment variables, and a clean notebook for experimentation.
+- **Current library APIs**: `pymupdf` (not the old `fitz` alias), CLIP `pooler_output` features, raw FAISS `IndexFlatIP`, and LangChain `init_chat_model`.
 
 ## Architecture
- 
+
 ```
 PDF → [PyMuPDF] → Text chunks + Images
                         ↓
-              [CLIP] → Text & image embeddings 
+              [CLIP] → Text & image embeddings
                         ↓
-              [FAISS] → Vector index
+              [FAISS IndexFlatIP] → Vector index
                         ↓
 Query → [CLIP] → query embedding → [FAISS] → top-k docs (text + images)
                         ↓
-              [Gemini] ← context (text + base64 images) → Answer
+              [Chat model] ← context (text + base64 images) → Answer
 ```
 
 ## Requirements
 
 - **Python** 3.10+
-- **Google API key** (for Gemini)
+- **OpenAI API key**
 - **~2GB RAM** for CLIP model and FAISS index (varies with PDF size)
 
 ## Installation
@@ -55,16 +55,16 @@ pip install -e .
 
 ### 4. Environment variables
 
-Copy the example env file and set your Google API key:
+Copy the example env file and set your OpenAI API key:
 
 ```bash
 cp .env.example .env
-# Edit .env and set GOOGLE_API_KEY=your_key_here
+# Edit .env and set OPENAI_API_KEY=your_key_here
 ```
 
 Optional variables (see `.env.example`):
 
-- `GEMINI_MODEL` – Gemini model name (default: `gemini-2.5-flash`)
+- `CHAT_MODEL` – chat model name (default: `gpt-5-nano`)
 - `CLIP_MODEL_ID` – CLIP model (default: `openai/clip-vit-base-patch32`)
 - `CHUNK_SIZE`, `CHUNK_OVERLAP`, `RETRIEVAL_TOP_K` – RAG tuning
 
@@ -73,20 +73,22 @@ Optional variables (see `.env.example`):
 ### Option A: Jupyter notebook (recommended for exploration)
 
 1. Place your PDF in the project root (or set `pdf_path` in the notebook).
-2. Open and run the notebook:
+2. Open and run either notebook:
 
 ```bash
+jupyter notebook multimodal_clip.ipynb
+# or
 jupyter notebook main.ipynb
 ```
 
-3. Run all cells to load CLIP, process the PDF, build the index, and query with Gemini.
+`multimodal_clip.ipynb` is the standalone working notebook. `main.ipynb` uses the same flow through the `clip_multimodal_rag` package.
 
 ### Option B: Python API
 
 ```python
 from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
 from clip_multimodal_rag import CLIPEmbedder, PDFProcessor, MultimodalRetriever, MultimodalRAGPipeline
 
@@ -100,7 +102,7 @@ docs, embeddings, image_store = processor.process(pdf_path)
 retriever = MultimodalRetriever(embedder, docs, embeddings)
 pipeline = MultimodalRAGPipeline(
     embedder, retriever, image_store,
-    gemini_model="gemini-2.5-flash",
+    chat_model="gpt-5-nano",
     top_k=5,
 )
 
@@ -126,10 +128,11 @@ clip-multimodal-rag/
 │       ├── embeddings.py    # CLIP embedder
 │       ├── pdf_processor.py # PDF → docs + embeddings
 │       ├── retrieval.py     # FAISS retriever
-│       └── pipeline.py      # RAG pipeline (retrieve + Gemini)
+│       └── pipeline.py      # RAG pipeline (retrieve + chat model)
 ├── scripts/
 │   └── run_rag.py           # CLI entrypoint
-├── main.ipynb               # End-to-end demo notebook
+├── multimodal_clip.ipynb    # Standalone working notebook
+├── main.ipynb               # Package-based demo notebook
 ├── requirements.txt
 ├── pyproject.toml
 ├── .env.example
@@ -137,16 +140,12 @@ clip-multimodal-rag/
 └── LICENSE
 ```
 
-
-
 ## Technologies
 
-| Component    | Technology |
-|-------------|------------|
-| PDF parsing | PyMuPDF (fitz) |
-| Embeddings  | CLIP (OpenAI), Hugging Face Transformers |
-| Vector store| FAISS (langchain-community) |
-| LLM         | Google Gemini (LangChain) |
-| Framework   | PyTorch, LangChain |
-
-
+| Component     | Technology |
+|---------------|------------|
+| PDF parsing   | PyMuPDF (`pymupdf`) |
+| Embeddings    | CLIP (OpenAI), Hugging Face Transformers |
+| Vector store  | FAISS (`IndexFlatIP`) |
+| LLM           | LangChain `init_chat_model` (OpenAI) |
+| Framework     | PyTorch, LangChain |

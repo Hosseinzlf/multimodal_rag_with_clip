@@ -5,7 +5,7 @@ import io
 import warnings
 from pathlib import Path
 
-import fitz
+import pymupdf
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from PIL import Image
@@ -57,58 +57,47 @@ class PDFProcessor:
         all_docs: list[Document] = []
         all_embeddings: list = []
         image_data_store: dict[str, str] = {}
-        doc = fitz.open(pdf_path)
 
-        try:
-            for page_index, page in enumerate(doc):
-                # Text
+        with pymupdf.open(pdf_path) as pdf:
+            for page_index, page in enumerate(pdf):
                 text = page.get_text()
                 if text.strip():
-                    temp_doc = Document(
+                    page_doc = Document(
                         page_content=text,
                         metadata={"page": page_index, "type": "text"},
                     )
-                    chunks = self.splitter.split_documents([temp_doc])
-                    for chunk in chunks:
+                    for chunk in self.splitter.split_documents([page_doc]):
                         all_docs.append(chunk)
-                        emb = self.embedder.embed_text(chunk.page_content)
-                        all_embeddings.append(emb)
+                        all_embeddings.append(
+                            self.embedder.embed_text(chunk.page_content)
+                        )
 
-                # Images
                 for img_index, img_info in enumerate(page.get_images(full=True)):
                     try:
-                        xref = img_info[0]
-                        base_image = doc.extract_image(xref)
-                        image_bytes = base_image["image"]
-                        pil_image = Image.open(
-                            io.BytesIO(image_bytes)
-                        ).convert("RGB")
+                        image_bytes = pdf.extract_image(img_info[0])["image"]
+                        pil_image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
                         image_id = _image_id(page_index, img_index)
-                        buffered = io.BytesIO()
-                        pil_image.save(buffered, format="PNG")
-                        img_b64 = base64.b64encode(
-                            buffered.getvalue()
+                        buffer = io.BytesIO()
+                        pil_image.save(buffer, format="PNG")
+                        image_data_store[image_id] = base64.b64encode(
+                            buffer.getvalue()
                         ).decode()
-                        image_data_store[image_id] = img_b64
 
-                        image_doc = Document(
-                            page_content=f"[Image: {image_id}]",
-                            metadata={
-                                "page": page_index,
-                                "type": "image",
-                                "image_id": image_id,
-                            },
+                        all_docs.append(
+                            Document(
+                                page_content=f"[Image: {image_id}]",
+                                metadata={
+                                    "page": page_index,
+                                    "type": "image",
+                                    "image_id": image_id,
+                                },
+                            )
                         )
-                        all_docs.append(image_doc)
-                        emb = self.embedder.embed_image(pil_image)
-                        all_embeddings.append(emb)
+                        all_embeddings.append(self.embedder.embed_image(pil_image))
                     except Exception as e:
                         warnings.warn(
                             f"Skip image {img_index} on page {page_index}: {e}"
                         )
-                        continue
-        finally:
-            doc.close()
 
         return all_docs, all_embeddings, image_data_store

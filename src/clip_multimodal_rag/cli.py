@@ -6,7 +6,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=True)
 
 
 def main() -> None:
@@ -50,13 +50,13 @@ def main() -> None:
         PDFProcessor,
     )
     from clip_multimodal_rag.config import (
-        get_google_api_key,
+        CHAT_MODEL,
         CLIP_MODEL_ID,
-        GEMINI_MODEL,
+        get_openai_api_key,
     )
 
     try:
-        get_google_api_key()
+        get_openai_api_key()
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -73,7 +73,7 @@ def main() -> None:
         embedder,
         retriever,
         image_store,
-        gemini_model=GEMINI_MODEL,
+        chat_model=CHAT_MODEL,
         top_k=args.top_k,
     )
     answer = pipeline.query(args.query, verbose=not args.quiet)
